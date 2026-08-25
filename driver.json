@@ -1,11 +1,11 @@
 {
   "driver_id": "samsungtv_driver",
-  "version": "1.5.2-test.4",
+  "version": "1.5.2-test.5",
   "min_core_api": "0.20.0",
   "name": {"en": "Samsung TV"},
   "icon": "uc:display",
   "description": {"en": "Control your Samsung TV on Remote Two/3. Uses the local subnet broadcast address for Wake-on-LAN.", "de": "Steuere Samsung TV mit Remote Two/3. Verwendet die lokale Broadcast-Adresse für Wake-on-LAN.", "fr": "Contrôler votre Samsung TV avec Remote Two/3."},
   "developer": {"name": "Jack Powell", "email": "jackjpowell@gmail.com", "url": "https://github.com/jackjpowell"},
-  "home_page": "https://github.com/JackJPowell/uc-intg-samsungtv",
+  "home_page": "https://github.com/JackJPowell/uc-intg-samsungtv_driver",
   "release_date": "2026-08-25"
 }
