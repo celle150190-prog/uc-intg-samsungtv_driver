@@ -1,3 +1,3 @@
 # Samsung TV driver custom build
 
-Working basis: uploaded uc-intg-samsungtv_driver 1.5.1-wol-localbroadcast archive.
+Working basis: official upstream Samsung TV v1.5.0 source plus the known working 1.5.1 local-broadcast WOL change. This clean project adds only the hourly Samsung REST keep-alive for testing.
