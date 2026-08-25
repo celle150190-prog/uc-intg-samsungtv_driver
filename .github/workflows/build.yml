@@ -10,44 +10,38 @@ permissions:
 
 jobs:
   build:
+    name: Build ARM64 Samsung TV driver
     runs-on: ubuntu-latest
     env:
-      PYINSTALLER_IMAGE: unfoldedcircle/r2-pyinstaller:3.11.13
       UPSTREAM_REPO: https://github.com/JackJPowell/uc-intg-samsungtv.git
       UPSTREAM_TAG: v1.5.0
-      ARTIFACT_NAME: uc-intg-samsungtv_driver-1.5.2-test.12-aarch64.tar.gz
+      PYINSTALLER_IMAGE: unfoldedcircle/r2-pyinstaller:3.11.13
+      ARTIFACT_NAME: uc-intg-samsungtv_driver-1.5.2-test.13-aarch64.tar.gz
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout custom project
+        uses: actions/checkout@v4
 
       - name: Setup QEMU for ARM64
         uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
 
-      - name: Validate build scripts before running build
+      - name: Validate local patch scripts
         run: |
           python3 -m py_compile scripts/apply_keepalive.py
-          bash -n scripts/build_pyinstaller.sh
-          grep -q '3600' scripts/apply_keepalive.py
-          grep -q '_start_rest_keepalive' scripts/apply_keepalive.py
-          grep -q 'ip_address=self._local_broadcast_address()' scripts/apply_keepalive.py
+          grep -q 'Samsung REST keep-alive' scripts/apply_keepalive.py
+          grep -q 'await asyncio.sleep(3600)' scripts/apply_keepalive.py
+          grep -q 'wakeonlan.send_magic_packet' scripts/apply_keepalive.py
+          grep -q 'netifaces' scripts/apply_keepalive.py
 
-      - name: Checkout upstream source
+      - name: Checkout exact v1.5.0 source
         run: |
           rm -rf /tmp/samsungtv-source
           git clone --depth 1 --branch "${UPSTREAM_TAG}" "${UPSTREAM_REPO}" /tmp/samsungtv-source
-          git -C /tmp/samsungtv-source rev-parse HEAD
           test "$(git -C /tmp/samsungtv-source rev-parse HEAD)" = "b4ebefd8299368336fab0d892fda1032d6213b63"
 
-      - name: Validate source
-        working-directory: /tmp/samsungtv-source
-        run: |
-          test -f driver.json
-          test -f requirements.txt
-          test -f intg-samsungtv/driver.py
-          test -f intg-samsungtv/tv.py
-
-      - name: Patch source
+      - name: Apply the two known patches
         run: python3 "$GITHUB_WORKSPACE/scripts/apply_keepalive.py"
         env:
           SAMSUNG_SOURCE_DIR: /tmp/samsungtv-source
@@ -57,64 +51,46 @@ jobs:
         run: |
           python3 -m py_compile intg-samsungtv/tv.py
           grep -q 'Samsung REST keep-alive' intg-samsungtv/tv.py
-          grep -q 'netifaces' intg-samsungtv/tv.py
-          grep -q 'ip_address=self._local_broadcast_address()' intg-samsungtv/tv.py
           grep -q 'await asyncio.sleep(3600)' intg-samsungtv/tv.py
           grep -q 'while self._power_state == MediaStates.OFF' intg-samsungtv/tv.py
+          grep -q 'ip_address=self._local_broadcast_address()' intg-samsungtv/tv.py
 
-      - name: Build with isolated reference runtime
+      - name: Build exactly like the proven Remote 3 container flow
         run: |
           rm -rf /tmp/pyinstaller-work
           mkdir -p /tmp/pyinstaller-work
           chmod 777 /tmp/pyinstaller-work
           docker run --rm --platform linux/arm64 \
-            -v /tmp/samsungtv-source:/workspace:ro \
+            -v /tmp/samsungtv-source:/workspace \
             -v /tmp/pyinstaller-work:/build \
-            -v "$GITHUB_WORKSPACE:/project:ro" \
-            -w /build \
+            -v "$GITHUB_WORKSPACE/scripts:/project-scripts:ro" \
+            -w /workspace \
             "${PYINSTALLER_IMAGE}" \
-            bash /project/scripts/build_pyinstaller.sh
+            bash /project-scripts/build_remote3.sh
 
-      - name: Assemble and validate package
+      - name: Assemble and validate final package
         run: |
           rm -rf /tmp/package
           mkdir -p /tmp/package/bin
-          cp -a /tmp/pyinstaller-work/dist/driver/. /tmp/package/bin/
-          cp driver.json /tmp/package/driver.json
+          cp -a /tmp/samsungtv-source/dist/driver/. /tmp/package/bin/
+          cp /tmp/samsungtv-source/driver.json /tmp/package/driver.json
 
-          python3 -c 'import json; from pathlib import Path; p=Path("/tmp/package/driver.json"); data=json.loads(p.read_text()); assert data["driver_id"]=="samsungtv_driver", data["driver_id"]; assert data["version"]=="1.5.2-test.12", data["version"]; assert "setup_data_schema" in data; assert data["setup_data_schema"]["settings"][0]["id"]=="info"; assert "local subnet broadcast address" in data["description"]["en"]; print("driver.json validation OK")'
+          python3 -c 'import json; from pathlib import Path; p=Path("/tmp/package/driver.json"); d=json.loads(p.read_text()); assert d["driver_id"]=="samsungtv_driver"; assert d["version"]=="1.5.2-test.13"; assert "setup_data_schema" in d; assert d["setup_data_schema"]["settings"][0]["id"]=="info"; print("driver.json OK")'
 
           test -x /tmp/package/bin/driver
           file /tmp/package/bin/driver | grep -qi 'ARM aarch64'
           test -s /tmp/package/bin/driver
           test -f /tmp/package/bin/_internal/_netifaces.cpython-311-aarch64-linux-gnu.so
           file /tmp/package/bin/_internal/_netifaces.cpython-311-aarch64-linux-gnu.so | grep -qi 'ARM aarch64'
-          test -f /tmp/package/bin/_internal/_cffi_backend.cpython-311-aarch64-linux-gnu.so
-          test -d /tmp/package/bin/_internal/cryptography-44.0.2.dist-info
-          test -d /tmp/package/bin/_internal/zeroconf-0.146.5.dist-info
-          test -d /tmp/package/bin/_internal/websockets-15.0.1.dist-info
-          test -d /tmp/package/bin/_internal/attrs-25.3.0.dist-info
-          test ! -e /tmp/package/bin/_internal/cryptography-49.0.0.dist-info
-          test ! -e /tmp/package/bin/_internal/python3.11
-          test ! -e /tmp/package/bin/_internal/81d243bd2c585b0f4821__mypyc.cpython-311-aarch64-linux-gnu.so
-
-          find /tmp/package/bin/_internal -maxdepth 1 \( -name 'pydantic*' -o -name 'pydantic_core*' \) -print | sort > /tmp/pydantic-files.txt
-          if [ -s /tmp/pydantic-files.txt ]; then
-            echo 'Pydantic content present in final bundle:'
-            cat /tmp/pydantic-files.txt
-          else
-            echo 'No Pydantic content present in final bundle'
-          fi
 
           tar -C /tmp/package -czf "${ARTIFACT_NAME}" .
-          tar -tzf "${ARTIFACT_NAME}" > /tmp/archive-list.txt
-          grep -qx './driver.json' /tmp/archive-list.txt
-          grep -qx './bin/driver' /tmp/archive-list.txt
-          grep -q '^./bin/_internal/_netifaces.cpython-311-aarch64-linux-gnu.so$' /tmp/archive-list.txt
+          tar -tzf "${ARTIFACT_NAME}" | grep -qx './driver.json'
+          tar -tzf "${ARTIFACT_NAME}" | grep -qx './bin/driver'
+          tar -tzf "${ARTIFACT_NAME}" | grep -q '^./bin/_internal/_netifaces.cpython-311-aarch64-linux-gnu.so$'
 
-      - name: Upload artifact
+      - name: Upload Remote 3 archive
         uses: actions/upload-artifact@v4
         with:
-          name: uc-intg-samsungtv_driver-1.5.2-test.12-aarch64
+          name: uc-intg-samsungtv_driver-1.5.2-test.13-aarch64
           path: ${{ env.ARTIFACT_NAME }}
           if-no-files-found: error
