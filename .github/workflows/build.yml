@@ -37,8 +37,9 @@ jobs:
           test -f intg-samsungtv/tv.py
 
       - name: Patch source
-        working-directory: /tmp/samsungtv-source
         run: python3 "$GITHUB_WORKSPACE/scripts/apply_keepalive.py"
+        env:
+          SAMSUNG_SOURCE_DIR: /tmp/samsungtv-source
 
       - name: Validate patched source
         working-directory: /tmp/samsungtv-source
@@ -49,8 +50,13 @@ jobs:
 
       - name: Build with Remote 3 Python 3.11.13 image
         run: |
+          rm -rf /tmp/pyinstaller-build /tmp/pyinstaller-dist /tmp/pyinstaller-spec
+          mkdir -p /tmp/pyinstaller-build /tmp/pyinstaller-dist /tmp/pyinstaller-spec
           docker run --rm --platform linux/arm64 \
             -v /tmp/samsungtv-source:/workspace \
+            -v /tmp/pyinstaller-build:/build \
+            -v /tmp/pyinstaller-dist:/dist \
+            -v /tmp/pyinstaller-spec:/spec \
             -w /workspace \
             "${PYINSTALLER_IMAGE}" \
             bash -lc '
@@ -58,14 +64,16 @@ jobs:
               python --version
               python -m pip install --upgrade pip
               python -m pip install -r requirements.txt
-              pyinstaller --clean --onedir --name driver intg-samsungtv/driver.py
+              pyinstaller --clean --onedir --name driver \
+                --workpath /build --distpath /dist --specpath /spec \
+                intg-samsungtv/driver.py
             '
 
       - name: Assemble and validate Remote 3 archive
         run: |
           rm -rf /tmp/package
           mkdir -p /tmp/package/bin
-          cp -a /tmp/samsungtv-source/dist/driver/. /tmp/package/bin/
+          cp -a /tmp/pyinstaller-dist/driver/. /tmp/package/bin/
           cp driver.json /tmp/package/driver.json
           tar -C /tmp/package -czf "${ARTIFACT_NAME}" .
           tar -tzf "${ARTIFACT_NAME}" | grep -q '^./bin/driver$'
