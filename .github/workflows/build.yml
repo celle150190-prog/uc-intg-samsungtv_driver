@@ -15,7 +15,7 @@ jobs:
       PYINSTALLER_IMAGE: unfoldedcircle/r2-pyinstaller:3.11.13
       UPSTREAM_REPO: https://github.com/JackJPowell/uc-intg-samsungtv.git
       UPSTREAM_TAG: v1.5.0
-      ARTIFACT_NAME: uc-intg-samsungtv_driver-1.5.2-test.7-aarch64.tar.gz
+      ARTIFACT_NAME: uc-intg-samsungtv_driver-1.5.2-test.8-aarch64.tar.gz
     steps:
       - uses: actions/checkout@v4
 
@@ -83,18 +83,7 @@ jobs:
           mkdir -p /tmp/package/bin
           cp -a /tmp/pyinstaller-work/dist/driver/. /tmp/package/bin/
           cp driver.json /tmp/package/driver.json
-          python3 - <<'PY'
-import json
-from pathlib import Path
-p = Path('/tmp/package/driver.json')
-data = json.loads(p.read_text())
-assert data['driver_id'] == 'samsungtv_driver'
-assert data['version'] == '1.5.2-test.7'
-assert 'setup_data_schema' in data
-assert data['setup_data_schema']['settings'][0]['id'] == 'info'
-assert 'local subnet broadcast address' in data['description']['en']
-print('driver.json validation OK')
-PY
+          python3 -c 'import json; from pathlib import Path; p=Path("/tmp/package/driver.json"); data=json.loads(p.read_text()); assert data["driver_id"]=="samsungtv_driver"; assert data["version"]=="1.5.2-test.8"; assert "setup_data_schema" in data; assert data["setup_data_schema"]["settings"][0]["id"]=="info"; assert "local subnet broadcast address" in data["description"]["en"]; print("driver.json validation OK")'
           test -x /tmp/package/bin/driver
           file /tmp/package/bin/driver | grep -qi 'ARM aarch64'
           test -s /tmp/package/bin/driver
@@ -108,5 +97,5 @@ PY
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: uc-intg-samsungtv_driver-1.5.2-test.7-aarch64
+          name: uc-intg-samsungtv_driver-1.5.2-test.8-aarch64
           path: ${{ env.ARTIFACT_NAME }}
