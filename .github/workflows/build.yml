@@ -14,10 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       UPSTREAM_REPO: https://github.com/JackJPowell/uc-intg-samsungtv.git
-      UPSTREAM_TAG: v1.5.0
       UPSTREAM_COMMIT: b4ebefd8299368336fab0d892fda1032d6213b63
       PYINSTALLER_IMAGE: unfoldedcircle/r2-pyinstaller:3.11.13
-      ARTIFACT_NAME: uc-intg-samsungtv_driver-1.5.2-test.14-aarch64.tar.gz
+      ARTIFACT_NAME: uc-intg-samsungtv_driver-1.5.2-test.15-aarch64.tar.gz
 
     steps:
       - name: Checkout custom project
@@ -39,7 +38,9 @@ jobs:
       - name: Checkout exact official v1.5.0 source
         run: |
           rm -rf /tmp/samsungtv-source
-          git clone --depth 1 --branch "${UPSTREAM_TAG}" "${UPSTREAM_REPO}" /tmp/samsungtv-source
+          git clone --depth 1 "${UPSTREAM_REPO}" /tmp/samsungtv-source
+          git -C /tmp/samsungtv-source fetch --depth 1 origin "${UPSTREAM_COMMIT}"
+          git -C /tmp/samsungtv-source checkout --detach "${UPSTREAM_COMMIT}"
           test "$(git -C /tmp/samsungtv-source rev-parse HEAD)" = "${UPSTREAM_COMMIT}"
           test "$(git -C /tmp/samsungtv-source show -s --format=%s)" = "1.5.0"
 
@@ -78,7 +79,7 @@ jobs:
           cp -a /tmp/samsungtv-source/dist/driver/. /tmp/package/bin/
           cp /tmp/samsungtv-source/driver.json /tmp/package/driver.json
 
-          python3 -c 'import json; from pathlib import Path; d=json.loads(Path("/tmp/package/driver.json").read_text()); assert d["driver_id"] == "samsungtv_driver"; assert d["version"] == "1.5.2-test.14"; assert "setup_data_schema" in d; assert d["setup_data_schema"]["settings"][0]["id"] == "info"; print("driver.json OK")'
+          python3 -c 'import json; from pathlib import Path; d=json.loads(Path("/tmp/package/driver.json").read_text()); assert d["driver_id"] == "samsungtv_driver"; assert d["version"] == "1.5.2-test.15"; assert "setup_data_schema" in d; assert d["setup_data_schema"]["settings"][0]["id"] == "info"; print("driver.json OK")'
           test -x /tmp/package/bin/driver
           file /tmp/package/bin/driver | grep -qi 'ARM aarch64'
           test -s /tmp/package/bin/driver
@@ -95,6 +96,6 @@ jobs:
       - name: Upload Remote 3 archive
         uses: actions/upload-artifact@v4
         with:
-          name: uc-intg-samsungtv_driver-1.5.2-test.14-aarch64
+          name: uc-intg-samsungtv_driver-1.5.2-test.15-aarch64
           path: ${{ env.ARTIFACT_NAME }}
           if-no-files-found: error
