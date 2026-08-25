@@ -1,0 +1,1 @@
+Build source is fetched from upstream v1.5.0 during GitHub Actions. The uploaded 1.5.1 archive is the functional reference for packaging/behavior; its custom local-broadcast change must be preserved when patching the build source.
