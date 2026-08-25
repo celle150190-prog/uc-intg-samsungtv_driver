@@ -15,7 +15,7 @@ jobs:
       PYINSTALLER_IMAGE: unfoldedcircle/r2-pyinstaller:3.11.13
       UPSTREAM_REPO: https://github.com/JackJPowell/uc-intg-samsungtv.git
       UPSTREAM_TAG: v1.5.0
-      ARTIFACT_NAME: uc-intg-samsungtv_driver-1.5.2-test.5-aarch64.tar.gz
+      ARTIFACT_NAME: uc-intg-samsungtv_driver-1.5.2-test.6-aarch64.tar.gz
     steps:
       - uses: actions/checkout@v4
 
@@ -28,6 +28,8 @@ jobs:
         run: |
           rm -rf /tmp/samsungtv-source
           git clone --depth 1 --branch "${UPSTREAM_TAG}" "${UPSTREAM_REPO}" /tmp/samsungtv-source
+          git -C /tmp/samsungtv-source rev-parse HEAD
+          test "$(git -C /tmp/samsungtv-source rev-parse HEAD)" = "b4ebefd8299368336fab0d892fda1032d6213b63"
 
       - name: Validate source
         working-directory: /tmp/samsungtv-source
@@ -47,6 +49,7 @@ jobs:
           python3 -m py_compile intg-samsungtv/tv.py
           grep -q 'Samsung REST keep-alive' intg-samsungtv/tv.py
           grep -q 'netifaces' intg-samsungtv/tv.py
+          grep -q 'ip_address=self._local_broadcast_address()' intg-samsungtv/tv.py
 
       - name: Build with Remote 3 Python 3.11.13 image
         run: |
@@ -61,7 +64,7 @@ jobs:
             bash -lc '
               set -euo pipefail
               python --version
-              python -m pip install --upgrade pip
+              test "$(python -c "import sys; print(sys.version_info[:3])")" = "(3, 11, 13)"
               python -m pip install -r /workspace/requirements.txt
               pyinstaller --clean --onedir --name driver \
                 --paths /workspace/intg-samsungtv \
@@ -74,14 +77,28 @@ jobs:
           mkdir -p /tmp/package/bin
           cp -a /tmp/pyinstaller-work/dist/driver/. /tmp/package/bin/
           cp driver.json /tmp/package/driver.json
-          tar -C /tmp/package -czf "${ARTIFACT_NAME}" .
-          tar -tzf "${ARTIFACT_NAME}" | grep -q '^./bin/driver$'
-          tar -tzf "${ARTIFACT_NAME}" | grep -q '^./driver.json$'
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('/tmp/package/driver.json')
+          data = json.loads(p.read_text())
+          assert data['driver_id'] == 'samsungtv_driver'
+          assert data['version'] == '1.5.2-test.6'
+          assert 'setup_data_schema' in data
+          assert data['setup_data_schema']['settings'][0]['id'] == 'info'
+          assert 'local subnet broadcast address' in data['description']['en']
+          print('driver.json validation OK')
+          PY
+          test -x /tmp/package/bin/driver
           file /tmp/package/bin/driver | grep -qi 'ARM aarch64'
-          grep -q '"version": "1.5.2-test.5"' driver.json
+          test -s /tmp/package/bin/driver
+          tar -C /tmp/package -czf "${ARTIFACT_NAME}" .
+          tar -tzf "${ARTIFACT_NAME}" > /tmp/archive-list.txt
+          grep -qx './driver.json' /tmp/archive-list.txt
+          grep -qx './bin/driver' /tmp/archive-list.txt
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: uc-intg-samsungtv_driver-1.5.2-test.5-aarch64
+          name: uc-intg-samsungtv_driver-1.5.2-test.6-aarch64
           path: ${{ env.ARTIFACT_NAME }}
