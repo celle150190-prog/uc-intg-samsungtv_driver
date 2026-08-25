@@ -61,21 +61,15 @@ jobs:
             -v /tmp/pyinstaller-work:/build \
             -w /build \
             "${PYINSTALLER_IMAGE}" \
-            bash -lc '
+            bash -lc "
               set -euo pipefail
               python --version
-              test "$(python -c "import sys; print(sys.version_info[:3])")" = "(3, 11, 13)"
+              python -c 'import sys; assert sys.version_info[:3] == (3, 11, 13); print(\"Python 3.11.13 validated\")'
               python -m pip install -r /workspace/requirements.txt
-              python -m pip install --no-deps \
-                "attrs==25.3.0" \
-                "websockets==15.0.1" \
-                "zeroconf==0.146.5" \
-                "netifaces==0.11.0"
-              python -c 'import attrs, netifaces, websockets, zeroconf; assert attrs.__version__ == "25.3.0"; assert websockets.__version__ == "15.0.1"; assert zeroconf.__version__ == "0.146.5"; print("Pinned runtime dependencies validated")'
-              pyinstaller --clean --onedir --name driver \
-                --paths /workspace/intg-samsungtv \
-                /workspace/intg-samsungtv/driver.py
-            '
+              python -m pip install --no-deps attrs==25.3.0 websockets==15.0.1 zeroconf==0.146.5 netifaces==0.11.0
+              python -c 'import attrs, netifaces, websockets, zeroconf; assert attrs.__version__ == \"25.3.0\"; assert websockets.__version__ == \"15.0.1\"; assert zeroconf.__version__ == \"0.146.5\"; print(\"Pinned runtime dependencies validated\")'
+              pyinstaller --clean --onedir --name driver --paths /workspace/intg-samsungtv /workspace/intg-samsungtv/driver.py
+            "
 
       - name: Assemble and validate Remote 3 archive
         run: |
