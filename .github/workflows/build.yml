@@ -1,0 +1,51 @@
+name: Build Samsung TV KeepAlive ARM64
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact upstream v1.5.0 source
+        run: git clone --depth 1 --branch v1.5.0 https://github.com/JackJPowell/uc-intg-samsungtv.git upstream
+      - name: Patch source
+        run: python3 "$GITHUB_WORKSPACE/scripts/apply_keepalive.py"
+      - name: Validate patched source
+        run: |
+          cd upstream
+          python3 -m py_compile intg-samsungtv/tv.py intg-samsungtv/driver.py
+          grep -q 'Samsung REST keep-alive' intg-samsungtv/tv.py
+          grep -q 'netifaces' intg-samsungtv/tv.py
+          grep -q 'ip_address=self._local_broadcast_address()' intg-samsungtv/tv.py
+      - name: Build ARM64 PyInstaller distribution
+        run: |
+          cd upstream
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pyinstaller
+          python3 -m pip install -r requirements.txt
+          python3 -m pip install netifaces
+          pyinstaller --clean --onedir --name driver intg-samsungtv/driver.py
+      - name: Assemble and validate Remote 3 archive
+        run: |
+          cd upstream
+          rm -rf package
+          mkdir -p package/bin
+          cp -a dist/driver/. package/bin/
+          cp "$GITHUB_WORKSPACE/driver.json" package/driver.json
+          tar -C package -czf "$GITHUB_WORKSPACE/uc-intg-samsungtv_driver-1.5.2-test.4-aarch64.tar.gz" .
+          test -s "$GITHUB_WORKSPACE/uc-intg-samsungtv_driver-1.5.2-test.4-aarch64.tar.gz"
+          tar -tzf "$GITHUB_WORKSPACE/uc-intg-samsungtv_driver-1.5.2-test.4-aarch64.tar.gz" | grep -q '^./bin/driver$'
+          tar -tzf "$GITHUB_WORKSPACE/uc-intg-samsungtv_driver-1.5.2-test.4-aarch64.tar.gz" | grep -q '^./driver.json$'
+          file package/bin/driver | grep -qi 'ARM aarch64'
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: uc-intg-samsungtv_driver-1.5.2-test.4-aarch64
+          path: uc-intg-samsungtv_driver-1.5.2-test.4-aarch64.tar.gz
