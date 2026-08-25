@@ -50,30 +50,28 @@ jobs:
 
       - name: Build with Remote 3 Python 3.11.13 image
         run: |
-          rm -rf /tmp/pyinstaller-build /tmp/pyinstaller-dist /tmp/pyinstaller-spec
-          mkdir -p /tmp/pyinstaller-build /tmp/pyinstaller-dist /tmp/pyinstaller-spec
+          rm -rf /tmp/pyinstaller-work
+          mkdir -p /tmp/pyinstaller-work
           docker run --rm --platform linux/arm64 \
-            -v /tmp/samsungtv-source:/workspace \
-            -v /tmp/pyinstaller-build:/build \
-            -v /tmp/pyinstaller-dist:/dist \
-            -v /tmp/pyinstaller-spec:/spec \
-            -w /workspace \
+            -v /tmp/samsungtv-source:/workspace:ro \
+            -v /tmp/pyinstaller-work:/build \
+            -w /build \
             "${PYINSTALLER_IMAGE}" \
             bash -lc '
               set -euo pipefail
               python --version
               python -m pip install --upgrade pip
-              python -m pip install -r requirements.txt
+              python -m pip install -r /workspace/requirements.txt
               pyinstaller --clean --onedir --name driver \
-                --workpath /build --distpath /dist --specpath /spec \
-                intg-samsungtv/driver.py
+                --paths /workspace/intg-samsungtv \
+                /workspace/intg-samsungtv/driver.py
             '
 
       - name: Assemble and validate Remote 3 archive
         run: |
           rm -rf /tmp/package
           mkdir -p /tmp/package/bin
-          cp -a /tmp/pyinstaller-dist/driver/. /tmp/package/bin/
+          cp -a /tmp/pyinstaller-work/dist/driver/. /tmp/package/bin/
           cp driver.json /tmp/package/driver.json
           tar -C /tmp/package -czf "${ARTIFACT_NAME}" .
           tar -tzf "${ARTIFACT_NAME}" | grep -q '^./bin/driver$'
