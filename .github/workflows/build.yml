@@ -42,7 +42,7 @@ jobs:
           git -C /tmp/samsungtv-source fetch --depth 1 origin "${UPSTREAM_COMMIT}"
           git -C /tmp/samsungtv-source checkout --detach "${UPSTREAM_COMMIT}"
           test "$(git -C /tmp/samsungtv-source rev-parse HEAD)" = "${UPSTREAM_COMMIT}"
-          test "$(git -C /tmp/samsungtv-source show -s --format=%s)" = "1.5.0"
+          test "$(git -C /tmp/samsungtv-source show -s --format=%s)" = "chore: Update v1.5.0"
 
       - name: Apply only the existing WOL patch plus hourly REST keep-alive
         run: python3 "$GITHUB_WORKSPACE/scripts/apply_keepalive.py"
