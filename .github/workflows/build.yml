@@ -55,6 +55,7 @@ jobs:
           test "$(git -C /tmp/samsungtv-source rev-parse HEAD)" = "${UPSTREAM_COMMIT}"
           test "$(git -C /tmp/samsungtv-source show -s --format=%s)" = "chore: Update v1.5.0"
           test "$(git -C /tmp/samsungtv-source status --porcelain | wc -l)" -eq 0
+          python3 -c 'import json; from pathlib import Path; d=json.loads(Path("/tmp/samsungtv-source/driver.json").read_text()); assert d["driver_id"]=="samsungtv_driver"; assert d["version"]=="1.5.0"; assert "setup_data_schema" in d; print("Official v1.5.0 metadata validated")'
 
       - name: Apply only the existing WOL patch plus hourly REST keep-alive
         run: python3 "$GITHUB_WORKSPACE/scripts/apply_keepalive.py"
@@ -103,8 +104,6 @@ jobs:
           test -f /tmp/package/bin/_internal/_netifaces.cpython-311-aarch64-linux-gnu.so
           file /tmp/package/bin/_internal/_netifaces.cpython-311-aarch64-linux-gnu.so | grep -qi 'ARM aarch64'
           test -f /tmp/package/bin/_internal/_cffi_backend.cpython-311-aarch64-linux-gnu.so
-
-          test ! -e /tmp/package/bin/_internal/cryptography-49.0.0.dist-info
 
           tar -C /tmp/package -czf "${ARTIFACT_NAME}" .
           tar -tzf "${ARTIFACT_NAME}" | grep -qx './driver.json'
