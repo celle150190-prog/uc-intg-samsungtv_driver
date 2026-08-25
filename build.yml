@@ -1,0 +1,58 @@
+name: Build Samsung TV KeepAlive ARM64
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout upstream source
+        run: git clone --depth 1 --branch v1.5.0 https://github.com/JackJPowell/uc-intg-samsungtv.git upstream
+
+      - name: Show source state
+        working-directory: upstream
+        run: |
+          git rev-parse HEAD
+          test -f intg-samsungtv/tv.py
+          test -f pyproject.toml
+
+      - name: Patch keep-alive
+        working-directory: upstream
+        run: python3 "$GITHUB_WORKSPACE/scripts/apply_keepalive.py"
+
+      - name: Validate
+        working-directory: upstream
+        run: |
+          python3 -m py_compile intg-samsungtv/tv.py
+          grep -q 'Samsung REST keep-alive' intg-samsungtv/tv.py
+
+      - name: Build ARM64
+        working-directory: upstream
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pyinstaller
+          python3 -m pip install -r requirements.txt || true
+          pyinstaller --clean --onedir --name driver intg-samsungtv/__main__.py
+
+      - name: Assemble archive
+        working-directory: upstream
+        run: |
+          rm -rf package
+          mkdir -p package/bin
+          cp -a dist/driver/. package/bin/
+          cp "$GITHUB_WORKSPACE/driver.json" package/driver.json
+          tar -C package -czf "$GITHUB_WORKSPACE/uc-intg-samsungtv_driver-1.5.2-test.4-aarch64.tar.gz" .
+          tar -tzf "$GITHUB_WORKSPACE/uc-intg-samsungtv_driver-1.5.2-test.4-aarch64.tar.gz" | grep -q '^./bin/driver$'
+          tar -tzf "$GITHUB_WORKSPACE/uc-intg-samsungtv_driver-1.5.2-test.4-aarch64.tar.gz" | grep -q '^./driver.json$'
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: uc-intg-samsungtv_driver-1.5.2-test.4-aarch64
+          path: uc-intg-samsungtv_driver-1.5.2-test.4-aarch64.tar.gz
