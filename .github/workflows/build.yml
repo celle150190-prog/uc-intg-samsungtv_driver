@@ -15,7 +15,7 @@ jobs:
       PYINSTALLER_IMAGE: unfoldedcircle/r2-pyinstaller:3.11.13
       UPSTREAM_REPO: https://github.com/JackJPowell/uc-intg-samsungtv.git
       UPSTREAM_TAG: v1.5.0
-      ARTIFACT_NAME: uc-intg-samsungtv_driver-1.5.2-test.10-aarch64.tar.gz
+      ARTIFACT_NAME: uc-intg-samsungtv_driver-1.5.2-test.11-aarch64.tar.gz
     steps:
       - uses: actions/checkout@v4
 
@@ -52,7 +52,7 @@ jobs:
           grep -q 'netifaces' intg-samsungtv/tv.py
           grep -q 'ip_address=self._local_broadcast_address()' intg-samsungtv/tv.py
 
-      - name: Build with reference runtime pins
+      - name: Build with isolated reference runtime
         run: |
           rm -rf /tmp/pyinstaller-work
           mkdir -p /tmp/pyinstaller-work
@@ -65,18 +65,21 @@ jobs:
             bash -lc "
               set -euo pipefail
               python --version
-              python -c 'import sys; assert sys.version_info[:3] == (3, 11, 13); print(\"Python 3.11.13 validated\")'
-              python -m pip install -r /workspace/requirements.txt
-              python -m pip install --no-deps \
+              python -m venv /build/venv
+              /build/venv/bin/python -m pip install --upgrade pip==26.1.2
+              /build/venv/bin/python -m pip install -r /workspace/requirements.txt
+              /build/venv/bin/python -m pip install --no-deps \
                 attrs==25.3.0 \
                 cffi==1.17.1 \
                 cryptography==44.0.2 \
                 netifaces==0.11.0 \
                 websockets==15.0.1 \
-                zeroconf==0.146.5
-              python -m pip uninstall -y pydantic pydantic-core typing-inspection annotated-types >/dev/null 2>&1 || true
-              python -c 'import attrs, cffi, cryptography, netifaces, websockets, zeroconf; assert attrs.__version__ == \"25.3.0\"; assert cffi.__version__ == \"1.17.1\"; assert cryptography.__version__ == \"44.0.2\"; assert websockets.__version__ == \"15.0.1\"; assert zeroconf.__version__ == \"0.146.5\"; assert netifaces.interfaces(); print(\"Reference runtime dependencies validated\")'
-              pyinstaller --clean --onedir --name driver --paths /workspace/intg-samsungtv /workspace/intg-samsungtv/driver.py
+                zeroconf==0.146.5 \
+                PyInstaller==6.21.0
+              /build/venv/bin/python -c 'import sys; assert sys.version_info[:3] == (3, 11, 13); print("Python 3.11.13 validated")'
+              /build/venv/bin/python -c 'import attrs, cffi, cryptography, netifaces, websockets, zeroconf; assert attrs.__version__ == "25.3.0"; assert cffi.__version__ == "1.17.1"; assert cryptography.__version__ == "44.0.2"; assert websockets.__version__ == "15.0.1"; assert zeroconf.__version__ == "0.146.5"; assert netifaces.interfaces(); print("Reference runtime dependencies validated")'
+              /build/venv/bin/python -c 'import importlib.util; assert importlib.util.find_spec("pydantic") is None; assert importlib.util.find_spec("pydantic_core") is None; print("Clean venv has no pydantic")'
+              /build/venv/bin/pyinstaller --clean --onedir --name driver --paths /workspace/intg-samsungtv /workspace/intg-samsungtv/driver.py
             "
 
       - name: Assemble and validate against 1.5.0 reference layout
@@ -85,7 +88,7 @@ jobs:
           mkdir -p /tmp/package/bin
           cp -a /tmp/pyinstaller-work/dist/driver/. /tmp/package/bin/
           cp driver.json /tmp/package/driver.json
-          python3 -c 'import json; from pathlib import Path; p=Path("/tmp/package/driver.json"); data=json.loads(p.read_text()); assert data["driver_id"]=="samsungtv_driver"; assert data["version"]=="1.5.2-test.10"; assert "setup_data_schema" in data; assert data["setup_data_schema"]["settings"][0]["id"]=="info"; assert "local subnet broadcast address" in data["description"]["en"]; print("driver.json validation OK")'
+          python3 -c 'import json; from pathlib import Path; p=Path("/tmp/package/driver.json"); data=json.loads(p.read_text()); assert data["driver_id"]=="samsungtv_driver", data["driver_id"]; assert data["version"]=="1.5.2-test.11", data["version"]; assert "setup_data_schema" in data; assert data["setup_data_schema"]["settings"][0]["id"]=="info"; assert "local subnet broadcast address" in data["description"]["en"]; print("driver.json validation OK")'
           test -x /tmp/package/bin/driver
           file /tmp/package/bin/driver | grep -qi 'ARM aarch64'
           test -s /tmp/package/bin/driver
@@ -110,5 +113,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: uc-intg-samsungtv_driver-1.5.2-test.10-aarch64
+          name: uc-intg-samsungtv_driver-1.5.2-test.11-aarch64
           path: ${{ env.ARTIFACT_NAME }}
