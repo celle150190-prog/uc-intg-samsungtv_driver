@@ -11,17 +11,24 @@ python -m venv "${VENV_DIR}"
 
 "${VENV_DIR}/bin/python" -m pip install --upgrade pip==26.1.2
 "${VENV_DIR}/bin/python" -m pip install -r "${SOURCE_DIR}/requirements.txt"
+
+# Install PyInstaller with its own build-time dependencies (including altgraph
+# and pyinstaller-hooks-contrib). These are build tools, not Samsung runtime pins.
+"${VENV_DIR}/bin/python" -m pip install PyInstaller==6.21.0
+
+# Pin the Samsung driver's runtime dependencies independently of the versions
+# currently present in the Remote 3 build container.
 "${VENV_DIR}/bin/python" -m pip install --no-deps \
   attrs==25.3.0 \
   cffi==1.17.1 \
   cryptography==44.0.2 \
   netifaces==0.11.0 \
   websockets==15.0.1 \
-  zeroconf==0.146.5 \
-  PyInstaller==6.21.0
+  zeroconf==0.146.5
 
 "${VENV_DIR}/bin/python" -c 'import sys; assert sys.version_info[:3] == (3, 11, 13); print("Python 3.11.13 validated")'
 "${VENV_DIR}/bin/python" -c 'import attrs, cffi, cryptography, netifaces, websockets, zeroconf; assert attrs.__version__ == "25.3.0"; assert cffi.__version__ == "1.17.1"; assert cryptography.__version__ == "44.0.2"; assert websockets.__version__ == "15.0.1"; assert zeroconf.__version__ == "0.146.5"; assert netifaces.interfaces(); print("Reference runtime dependencies validated")'
+"${VENV_DIR}/bin/python" -c 'import altgraph, PyInstaller; print(f"PyInstaller {PyInstaller.__version__} with altgraph {altgraph.__version__} validated")'
 
 rm -rf "${BUILD_DIR}/build" "${BUILD_DIR}/dist" "${BUILD_DIR}/driver.spec"
 "${VENV_DIR}/bin/pyinstaller" \
