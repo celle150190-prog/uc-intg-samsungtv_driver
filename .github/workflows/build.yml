@@ -1,6 +1,8 @@
 name: Build Samsung TV KeepAlive ARM64
 
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
 
 permissions:
