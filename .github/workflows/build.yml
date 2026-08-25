@@ -71,13 +71,7 @@ jobs:
                 "websockets==15.0.1" \
                 "zeroconf==0.146.5" \
                 "netifaces==0.11.0"
-              python - <<'PY'
-              import attrs, netifaces, websockets, zeroconf
-              assert attrs.__version__ == "25.3.0"
-              assert websockets.__version__ == "15.0.1"
-              assert zeroconf.__version__ == "0.146.5"
-              print("Pinned runtime dependencies validated")
-              PY
+              python -c 'import attrs, netifaces, websockets, zeroconf; assert attrs.__version__ == "25.3.0"; assert websockets.__version__ == "15.0.1"; assert zeroconf.__version__ == "0.146.5"; print("Pinned runtime dependencies validated")'
               pyinstaller --clean --onedir --name driver \
                 --paths /workspace/intg-samsungtv \
                 /workspace/intg-samsungtv/driver.py
@@ -90,17 +84,17 @@ jobs:
           cp -a /tmp/pyinstaller-work/dist/driver/. /tmp/package/bin/
           cp driver.json /tmp/package/driver.json
           python3 - <<'PY'
-          import json
-          from pathlib import Path
-          p = Path('/tmp/package/driver.json')
-          data = json.loads(p.read_text())
-          assert data['driver_id'] == 'samsungtv_driver'
-          assert data['version'] == '1.5.2-test.7'
-          assert 'setup_data_schema' in data
-          assert data['setup_data_schema']['settings'][0]['id'] == 'info'
-          assert 'local subnet broadcast address' in data['description']['en']
-          print('driver.json validation OK')
-          PY
+import json
+from pathlib import Path
+p = Path('/tmp/package/driver.json')
+data = json.loads(p.read_text())
+assert data['driver_id'] == 'samsungtv_driver'
+assert data['version'] == '1.5.2-test.7'
+assert 'setup_data_schema' in data
+assert data['setup_data_schema']['settings'][0]['id'] == 'info'
+assert 'local subnet broadcast address' in data['description']['en']
+print('driver.json validation OK')
+PY
           test -x /tmp/package/bin/driver
           file /tmp/package/bin/driver | grep -qi 'ARM aarch64'
           test -s /tmp/package/bin/driver
