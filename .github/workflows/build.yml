@@ -27,13 +27,24 @@ jobs:
         with:
           platforms: arm64
 
-      - name: Validate patch script before build
+      - name: Validate build configuration before doing any build
         run: |
           python3 -m py_compile scripts/apply_keepalive.py
+          bash -n scripts/build_remote3.sh
           grep -q 'Samsung REST keep-alive' scripts/apply_keepalive.py
           grep -q 'await asyncio.sleep(3600)' scripts/apply_keepalive.py
           grep -q 'wakeonlan.send_magic_packet' scripts/apply_keepalive.py
           grep -q 'netifaces' scripts/apply_keepalive.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d = json.loads(Path('driver.json').read_text())
+          assert d['driver_id'] == 'samsungtv_driver'
+          assert d['version'] == '1.5.2-test.16'
+          assert 'setup_data_schema' in d
+          assert d['setup_data_schema']['settings'][0]['id'] == 'info'
+          print('Custom driver.json validated')
+          PY
 
       - name: Checkout exact official v1.5.0 source
         run: |
@@ -43,13 +54,14 @@ jobs:
           git -C /tmp/samsungtv-source checkout --detach "${UPSTREAM_COMMIT}"
           test "$(git -C /tmp/samsungtv-source rev-parse HEAD)" = "${UPSTREAM_COMMIT}"
           test "$(git -C /tmp/samsungtv-source show -s --format=%s)" = "chore: Update v1.5.0"
+          test "$(git -C /tmp/samsungtv-source status --porcelain | wc -l)" -eq 0
 
       - name: Apply only the existing WOL patch plus hourly REST keep-alive
         run: python3 "$GITHUB_WORKSPACE/scripts/apply_keepalive.py"
         env:
           SAMSUNG_SOURCE_DIR: /tmp/samsungtv-source
 
-      - name: Validate patched source
+      - name: Validate patched source and prove patch scope
         working-directory: /tmp/samsungtv-source
         run: |
           python3 -m py_compile intg-samsungtv/tv.py
@@ -59,13 +71,17 @@ jobs:
           grep -q 'ip_address=self._local_broadcast_address()' intg-samsungtv/tv.py
           grep -q 'netifaces' intg-samsungtv/tv.py
 
+          test "$(git diff --name-only | wc -l)" -eq 1
+          test "$(git diff --name-only)" = "intg-samsungtv/tv.py"
+          test -z "$(git diff --name-only --diff-filter=AMD driver.json)"
+
       - name: Build using the proven Remote 3 container flow
         run: |
           rm -rf /tmp/pyinstaller-work
           mkdir -p /tmp/pyinstaller-work
           chmod 777 /tmp/pyinstaller-work
           docker run --rm --platform linux/arm64 \
-            -v /tmp/samsungtv-source:/workspace \
+            -v /tmp/samsungtv-source:/workspace:ro \
             -v /tmp/pyinstaller-work:/build \
             -v "$GITHUB_WORKSPACE/scripts:/project-scripts:ro" \
             -w /build \
@@ -77,15 +93,18 @@ jobs:
           rm -rf /tmp/package
           mkdir -p /tmp/package/bin
           cp -a /tmp/pyinstaller-work/dist/driver/. /tmp/package/bin/
-          cp /tmp/samsungtv-source/driver.json /tmp/package/driver.json
+          cp "$GITHUB_WORKSPACE/driver.json" /tmp/package/driver.json
 
           python3 -c 'import json; from pathlib import Path; d=json.loads(Path("/tmp/package/driver.json").read_text()); assert d["driver_id"] == "samsungtv_driver"; assert d["version"] == "1.5.2-test.16"; assert "setup_data_schema" in d; assert d["setup_data_schema"]["settings"][0]["id"] == "info"; print("driver.json OK")'
+
           test -x /tmp/package/bin/driver
           file /tmp/package/bin/driver | grep -qi 'ARM aarch64'
           test -s /tmp/package/bin/driver
           test -f /tmp/package/bin/_internal/_netifaces.cpython-311-aarch64-linux-gnu.so
           file /tmp/package/bin/_internal/_netifaces.cpython-311-aarch64-linux-gnu.so | grep -qi 'ARM aarch64'
           test -f /tmp/package/bin/_internal/_cffi_backend.cpython-311-aarch64-linux-gnu.so
+
+          test ! -e /tmp/package/bin/_internal/cryptography-49.0.0.dist-info
 
           tar -C /tmp/package -czf "${ARTIFACT_NAME}" .
           tar -tzf "${ARTIFACT_NAME}" | grep -qx './driver.json'
