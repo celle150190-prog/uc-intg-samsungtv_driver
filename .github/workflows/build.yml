@@ -15,8 +15,9 @@ jobs:
     env:
       UPSTREAM_REPO: https://github.com/JackJPowell/uc-intg-samsungtv.git
       UPSTREAM_TAG: v1.5.0
+      UPSTREAM_COMMIT: b4ebefd8299368336fab0d892fda1032d6213b63
       PYINSTALLER_IMAGE: unfoldedcircle/r2-pyinstaller:3.11.13
-      ARTIFACT_NAME: uc-intg-samsungtv_driver-1.5.2-test.13-aarch64.tar.gz
+      ARTIFACT_NAME: uc-intg-samsungtv_driver-1.5.2-test.14-aarch64.tar.gz
 
     steps:
       - name: Checkout custom project
@@ -27,7 +28,7 @@ jobs:
         with:
           platforms: arm64
 
-      - name: Validate local patch scripts
+      - name: Validate patch script before build
         run: |
           python3 -m py_compile scripts/apply_keepalive.py
           grep -q 'Samsung REST keep-alive' scripts/apply_keepalive.py
@@ -35,13 +36,14 @@ jobs:
           grep -q 'wakeonlan.send_magic_packet' scripts/apply_keepalive.py
           grep -q 'netifaces' scripts/apply_keepalive.py
 
-      - name: Checkout exact v1.5.0 source
+      - name: Checkout exact official v1.5.0 source
         run: |
           rm -rf /tmp/samsungtv-source
           git clone --depth 1 --branch "${UPSTREAM_TAG}" "${UPSTREAM_REPO}" /tmp/samsungtv-source
-          test "$(git -C /tmp/samsungtv-source rev-parse HEAD)" = "b4ebefd8299368336fab0d892fda1032d6213b63"
+          test "$(git -C /tmp/samsungtv-source rev-parse HEAD)" = "${UPSTREAM_COMMIT}"
+          test "$(git -C /tmp/samsungtv-source show -s --format=%s)" = "1.5.0"
 
-      - name: Apply the two known patches
+      - name: Apply only the existing WOL patch plus hourly REST keep-alive
         run: python3 "$GITHUB_WORKSPACE/scripts/apply_keepalive.py"
         env:
           SAMSUNG_SOURCE_DIR: /tmp/samsungtv-source
@@ -54,8 +56,9 @@ jobs:
           grep -q 'await asyncio.sleep(3600)' intg-samsungtv/tv.py
           grep -q 'while self._power_state == MediaStates.OFF' intg-samsungtv/tv.py
           grep -q 'ip_address=self._local_broadcast_address()' intg-samsungtv/tv.py
+          grep -q 'netifaces' intg-samsungtv/tv.py
 
-      - name: Build exactly like the proven Remote 3 container flow
+      - name: Build using the proven Remote 3 container flow
         run: |
           rm -rf /tmp/pyinstaller-work
           mkdir -p /tmp/pyinstaller-work
@@ -68,29 +71,30 @@ jobs:
             "${PYINSTALLER_IMAGE}" \
             bash /project-scripts/build_remote3.sh
 
-      - name: Assemble and validate final package
+      - name: Assemble and validate archive
         run: |
           rm -rf /tmp/package
           mkdir -p /tmp/package/bin
           cp -a /tmp/samsungtv-source/dist/driver/. /tmp/package/bin/
           cp /tmp/samsungtv-source/driver.json /tmp/package/driver.json
 
-          python3 -c 'import json; from pathlib import Path; p=Path("/tmp/package/driver.json"); d=json.loads(p.read_text()); assert d["driver_id"]=="samsungtv_driver"; assert d["version"]=="1.5.2-test.13"; assert "setup_data_schema" in d; assert d["setup_data_schema"]["settings"][0]["id"]=="info"; print("driver.json OK")'
-
+          python3 -c 'import json; from pathlib import Path; d=json.loads(Path("/tmp/package/driver.json").read_text()); assert d["driver_id"] == "samsungtv_driver"; assert d["version"] == "1.5.2-test.14"; assert "setup_data_schema" in d; assert d["setup_data_schema"]["settings"][0]["id"] == "info"; print("driver.json OK")'
           test -x /tmp/package/bin/driver
           file /tmp/package/bin/driver | grep -qi 'ARM aarch64'
           test -s /tmp/package/bin/driver
           test -f /tmp/package/bin/_internal/_netifaces.cpython-311-aarch64-linux-gnu.so
           file /tmp/package/bin/_internal/_netifaces.cpython-311-aarch64-linux-gnu.so | grep -qi 'ARM aarch64'
+          test -f /tmp/package/bin/_internal/_cffi_backend.cpython-311-aarch64-linux-gnu.so
 
           tar -C /tmp/package -czf "${ARTIFACT_NAME}" .
           tar -tzf "${ARTIFACT_NAME}" | grep -qx './driver.json'
           tar -tzf "${ARTIFACT_NAME}" | grep -qx './bin/driver'
           tar -tzf "${ARTIFACT_NAME}" | grep -q '^./bin/_internal/_netifaces.cpython-311-aarch64-linux-gnu.so$'
+          ls -lh "${ARTIFACT_NAME}"
 
       - name: Upload Remote 3 archive
         uses: actions/upload-artifact@v4
         with:
-          name: uc-intg-samsungtv_driver-1.5.2-test.13-aarch64
+          name: uc-intg-samsungtv_driver-1.5.2-test.14-aarch64
           path: ${{ env.ARTIFACT_NAME }}
           if-no-files-found: error
