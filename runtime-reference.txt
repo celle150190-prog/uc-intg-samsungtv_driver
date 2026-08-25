@@ -1,6 +1,6 @@
-# Runtime versions present in the known-working 1.5.1 ARM64 package
-# These were extracted from the uploaded uc-intg-samsungtv_driver-1.5.1-wol-localbroadcast-aarch64.tar.gz
+# Exact package versions observed in the known-working 1.5.1 ARM64 bundle
 attrs==25.3.0
+cffi==1.17.1
 cryptography==44.0.2
 websockets==15.0.1
 zeroconf==0.146.5
