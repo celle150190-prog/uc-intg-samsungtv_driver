@@ -45,6 +45,8 @@ jobs:
           grep -q 'await asyncio.sleep(3600)' scripts/apply_keepalive.py
           grep -q 'ip_address=self._local_broadcast_address()' scripts/apply_keepalive.py
           grep -q 'netifaces' runtime-reference.txt
+          grep -q 'attrs==25.3.0' runtime-reference.txt
+          grep -q 'cffi==1.17.1' runtime-reference.txt
           grep -q 'cryptography==44.0.2' runtime-reference.txt
           grep -q 'websockets==15.0.1' runtime-reference.txt
           grep -q 'zeroconf==0.146.5' runtime-reference.txt
@@ -86,9 +88,10 @@ jobs:
           docker run --rm --platform linux/arm64 \
             -v /tmp/samsungtv-source:/workspace:ro \
             -v /tmp/build:/build \
+            -v "$GITHUB_WORKSPACE/scripts:/project-scripts:ro" \
             -w /build \
             "${PYINSTALLER_IMAGE}" \
-            bash /workspace/../project-scripts/build_remote3.sh
+            bash /project-scripts/build_remote3.sh
 
       - name: Assemble and validate artifact
         run: |
@@ -109,6 +112,7 @@ jobs:
           test -x /tmp/package/bin/driver
           file /tmp/package/bin/driver | grep -qi 'ARM aarch64'
           test -f /tmp/package/bin/_internal/_netifaces.cpython-311-aarch64-linux-gnu.so
+          test -f /tmp/package/bin/_cffi_backend.cpython-311-aarch64-linux-gnu.so
           test -d /tmp/package/bin/_internal/attrs-25.3.0.dist-info
           test -d /tmp/package/bin/_internal/cryptography-44.0.2.dist-info
           test -d /tmp/package/bin/_internal/websockets-15.0.1.dist-info
