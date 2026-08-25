@@ -15,7 +15,7 @@ jobs:
       PYINSTALLER_IMAGE: unfoldedcircle/r2-pyinstaller:3.11.13
       UPSTREAM_REPO: https://github.com/JackJPowell/uc-intg-samsungtv.git
       UPSTREAM_TAG: v1.5.0
-      ARTIFACT_NAME: uc-intg-samsungtv_driver-1.5.2-test.6-aarch64.tar.gz
+      ARTIFACT_NAME: uc-intg-samsungtv_driver-1.5.2-test.7-aarch64.tar.gz
     steps:
       - uses: actions/checkout@v4
 
@@ -66,6 +66,18 @@ jobs:
               python --version
               test "$(python -c "import sys; print(sys.version_info[:3])")" = "(3, 11, 13)"
               python -m pip install -r /workspace/requirements.txt
+              python -m pip install --no-deps \
+                "attrs==25.3.0" \
+                "websockets==15.0.1" \
+                "zeroconf==0.146.5" \
+                "netifaces==0.11.0"
+              python - <<'PY'
+              import attrs, netifaces, websockets, zeroconf
+              assert attrs.__version__ == "25.3.0"
+              assert websockets.__version__ == "15.0.1"
+              assert zeroconf.__version__ == "0.146.5"
+              print("Pinned runtime dependencies validated")
+              PY
               pyinstaller --clean --onedir --name driver \
                 --paths /workspace/intg-samsungtv \
                 /workspace/intg-samsungtv/driver.py
@@ -83,7 +95,7 @@ jobs:
           p = Path('/tmp/package/driver.json')
           data = json.loads(p.read_text())
           assert data['driver_id'] == 'samsungtv_driver'
-          assert data['version'] == '1.5.2-test.6'
+          assert data['version'] == '1.5.2-test.7'
           assert 'setup_data_schema' in data
           assert data['setup_data_schema']['settings'][0]['id'] == 'info'
           assert 'local subnet broadcast address' in data['description']['en']
@@ -92,6 +104,8 @@ jobs:
           test -x /tmp/package/bin/driver
           file /tmp/package/bin/driver | grep -qi 'ARM aarch64'
           test -s /tmp/package/bin/driver
+          test -f /tmp/package/bin/_internal/_netifaces.cpython-311-aarch64-linux-gnu.so
+          file /tmp/package/bin/_internal/_netifaces.cpython-311-aarch64-linux-gnu.so | grep -qi 'ARM aarch64'
           tar -C /tmp/package -czf "${ARTIFACT_NAME}" .
           tar -tzf "${ARTIFACT_NAME}" > /tmp/archive-list.txt
           grep -qx './driver.json' /tmp/archive-list.txt
@@ -100,5 +114,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: uc-intg-samsungtv_driver-1.5.2-test.6-aarch64
+          name: uc-intg-samsungtv_driver-1.5.2-test.7-aarch64
           path: ${{ env.ARTIFACT_NAME }}
